@@ -1,0 +1,266 @@
+#! /bin/ksh
+#  FNMOC SCCS Identification:  $HeadURL$
+#  FNMOC SCCS Identification:  @(#)$Id$
+
+####=============================================================================
+####
+####
+####    radar_nexrad_process.fcn
+####
+####    Functions for an SMS task that processes the NEXRAD Level II data for
+####    coverting the Level II files (from NEXRAD) to graphical (jpg) data 
+####    
+####
+####    Executes:
+####        radar_nexrad_process_levelII.ksh  
+####                   --------- which in turn executes:
+####        Py_nexrad_refvel_process.py
+####                   --------- convert NEXRAD LII data to JPG
+#### 
+####
+####    NOTE:  Py_nexrad_refvel_process.py is a python program.
+####
+####
+####    NOTE:  Diagnose() reports to the monitor problems that must be
+####    fixed PRIOR TO the monitor's rerunning this task; this means that
+####    problems with OUTPUT files should NOT be Diagnose'd unless we are
+####    prepared to wait for the problem to be fixed and then rerun!
+####
+####
+####=============================================================================
+####
+#### Utility functions (from jobutils.fcn) called:
+# Log
+# Check_env
+# Report
+# Notify
+# Diagnose
+# MV
+# LN
+#
+#### Imported variables:
+
+# XFER_DATAPATH     Directory for processed files
+# INFORMATIVE       Exit code to put "INFORMATIVE" message in joblog file
+# OPSBIN            Path for OPS executable files
+# TCBIN             Path for holding TC executable files
+# TCPROCESS         Path for marking processed SSMI TDF files
+# TCLOG             Path for log of TC processing
+# TCETC             Path for configuration files
+# TSCANBIN          Path for Terascan executable files
+# TCBOGUS           Path for TC bogus/invest files of active storms
+# TCBOGUSSAVE       Path for TC bogus/invest files of non-active storms
+# SECTORS           Path for holding a list of bogus/invest files. This list 
+#                   will be used in TC image display
+
+#
+# NOTE: Adapted from Yiping Wang version of ascat processing script. 
+#
+
+#### RECORD OF CHANGES:
+#    Dec. 10, 2016  Paul McCrone, x1503 Release Version A.1.0
+#                   Make it run on Alpha
+#----------------------------------------------------------------
+#    Feb. 15, 2017  Paul McCrone, x1503 Release Version 1.5.0
+#                   Make it run on Beta
+#----------------------------------------------------------------
+#    Feb. 16, 2017  Paul McCrone, x1503 Release Version 1.5.1
+#                   Make it run on Beta
+#----------------------------------------------------------------
+#    Feb. 16, 2017  Paul McCrone, x1503 Release Version 1.5.2
+#                   Make it run on Beta
+#----------------------------------------------------------------
+#    Feb. 25, 2017  Paul McCrone, x1503 Release Version 1.5.3
+#                   Make it run on Beta
+#----------------------------------------------------------------
+#
+#
+#################################################
+# Publish function version information in log   #
+#################################################
+
+
+####################################################################
+# exit codes from radar_nexrad_process to tdf and TC processing    #
+####################################################################
+export Failed_txt=28
+export NO_ACTIVE_BOGUS=30
+export FAIL_OPEN_BOGUS=31
+
+#################################################
+#################################################
+
+###########################################################
+# analyze_run_radar_nexrad_process_exit_code()            #
+###########################################################
+
+function analyze_run_radar_nexrad_process_exit_code
+{
+integer code=$1         # exit code
+
+#  primary message to log are generic, can be reset in error handling below
+
+export pri_msg="ERROR $code:  Failed to process---SEE--- $radar_nexrad_process_file."
+export aux_msg=            # aux message to log are error specific
+
+set -x
+
+#turn_off_xvfb $DISPLAY
+
+case $code in
+#----------------
+# 1.  Following codes are probably due to a SYSTEM problem, resulting in NO
+#       data whatever being processed, so diagnose the problem and exit:
+#----------------
+
+    $UNIX_1)    # Could not execute the program at all (Unix error code 1)
+        Log $pri_msg
+        #if [[ -f $radar_nexrad_process_file ]]; then
+        #   mv $radar_nexrad_process_file ${radar_nexrad_process_path}/FAILED_$radar_nexrad_process_name
+        #fi
+        Diagnose rx $run            # will exit
+        ;;
+#----------------
+# 2.  Following code represents success, so report it, clean up, and exit:
+#----------------
+    0)  # Success!
+        msg="Processed $radar_nexrad_process_name."
+        INIT_user_exit_params=$msg
+        #mv ${TCWEBWORK}/$radar_nexrad_process_name $XFER_DATAPATH
+        #if [[ -a $radar_nexrad_process_file ]]; then
+        #    rm -f  $radar_nexrad_process_file
+        #    Report 0 $radar_nexrad_process_file  # Report success to the monitor process
+        #fi
+        #Report 0 $radar_nexrad_process_file  # Report success to the monitor process
+        Report 0 $radar_nexrad_process_name  # Report success to the monitor process
+        exit 0
+        ;;
+#----------------
+# 3.  Following codes are error one, and need to notify operator.
+#----------------
+    $Failed_txt)
+        aux_msg="Failed to process $radar_nexrad_process_name."
+    ;;
+#----------------
+# 4.  Following codes are for providing info., and don't notify operator.
+#----------------
+   # $NO_ACTIVE_BOGUS)
+   #     Log "There is no any tc bogus for the active storms."
+   #     Report 0 $radar_nexrad_process_file
+   #     mv $radar_nexrad_process_file $XFER_DATAPATH
+   #     exit $INFORMATIVE
+   # ;;
+
+##----------------
+## 5.  Following codes are for RADAR Failure.
+##----------------
+#    5)  # RADAR FAILURE!
+#        Log $pri_msg
+#        Log "One of the key KSH scripts failed in radar_nexrad_process."
+#        Diagnose rx $run            # will exit
+#    ;;
+    *)  # All other codes are unknown
+        aux_msg="FAILED(?):  Unknown error $code"
+        ;;
+esac
+
+# save input for examination
+#if [[ -f $radar_nexrad_process_file ]]; then
+#    mv $radar_nexrad_process_file ${radar_nexrad_process_path}/FAILED_$radar_nexrad_process_name
+#fi
+
+#Notify 0 $radar_nexrad_process_file "$aux_msg"
+Notify 0 $radar_nexrad_process_name "$aux_msg"
+INIT_user_exit_params=$pri_msg  # original message goes to joblog
+exit $INFORMATIVE               # SMS gets "success" code since want no retry
+}
+
+###########################################################
+# radar_nexrad_process()                                  #
+###########################################################
+
+function radar_nexrad_process
+{
+###
+JDAY=$(date +%j)
+DDMMYY=$(date +%F)
+HH=$(date +%H)
+MM=$(date +%M)
+TODAY=${DDMMYY}_${HH}${MM}
+###
+#
+#export radar_nexrad_process_file=$1               # path of file to process
+export radar_nexrad_process_file=${XFER_BASEPATH}/log.runner_Py_nexrad_log      # path of file to process
+#Check_env radar_nexrad_process_file                                             #  must be specified!
+#Log "Processing $radar_nexrad_process_file..."
+Log "Processing radar_nexrad_process..${TODAY}."
+#export radar_nexrad_process_path=${radar_nexrad_process_file%/*}
+export radar_nexrad_process_path=${XFER_BASEPATH}
+Log "radar_nexrad_process_path=$radar_nexrad_process_path"
+#export radar_nexrad_process_name=${radar_nexrad_process_file##*/} # file name w/o path, for shorter messages
+export radar_nexrad_process_name="radar_nexrad_process"
+# 
+Log "radar_nexrad_process_name=$radar_nexrad_process_name"
+
+FAILFILE=${XFER_BASEPATH}/FAILED_${radar_nexrad_process_name}_${JDAY}_${DDMMYY}_${HH}${MM}_${JDAY}
+integer MYCODE=0
+#### 1. Convert to text format:
+Log "PWD = $PWD"
+cd $radar_nexrad_process_path
+
+############################################################################
+Log "---radar_nexrad_process_direxist.ksh---_runs_to_verify_that_directories_EXIST."
+$OPSBIN/radar_nexrad_process_direxist.ksh
+############################################################################
+###
+    typeset resultd=$?
+    if [[ $resultd != 0 ]] then
+       Log "Failed_to_check_directories.....check---radar_nexrad_process_direxist.ksh---"
+       integer MYCODE=5
+    fi
+############################################################################
+###############THIS IS THE PLACE WHERE THE PYTHON CODE SHOULD BE INVOKED.
+    Log "---radar_nexrad_process_levelII.ksh---_runs_to_execute_python_code."
+    export run=$OPSBIN/radar_nexrad_process_levelII.ksh
+    $OPSBIN/radar_nexrad_process_levelII.ksh
+############################################################################
+###
+    typeset result=$?
+    if [[ $result == 1 ]] then
+       Log "Processed $radar_nexrad_process_name"
+       Log "The value of --result-- was--- $result "
+       Log "There was a minor PYTHON warning, which was handled by the python code."
+       Log "This was most likely a corrupted Level II file, which was caught successfully."
+       #mv $radar_nexrad_process_file $radar_nexrad_process_path/FAILED_$radar_nexrad_process_name
+       #touch ${FAILFILE}
+       integer MYCODE=5
+    fi
+#------------------------------------------------------------------
+    if [[ $result == 0 ]] then
+       Log "Successfully Processed $radar_nexrad_process_name"
+    fi
+#------------------------------------------------------------------
+    if [[ $result > 1 ]] then
+       Log "UNKNOWN ERROR: $radar_nexrad_process_name"
+       Log "The value of --result-- was--- $result "
+    fi
+#------------------------------------------------------------------
+#
+#### 5. Clean up
+
+Log "Clean up ..."
+#find ${XFER_BASEPATH}/txtTcweb -name "*"  -mtime +0  -exec rm {} \;
+#find ${XFER_BASEPATH}/txtModel -name "*"  -mtime +0  -exec rm {} \;
+#find ${XFER_BASEPATH}/TXT -name "*"  -mtime +0  -exec rm {} \;
+
+#${OPSBIN}/hour_find.pl 3 ${inpath}/txt$prod/ISIS |read saved_files
+
+analyze_run_radar_nexrad_process_exit_code 0  # report success and exit
+#analyze_run_radar_nexrad_process_exit_code ${MYCODE}  # report results and exit
+
+}
+
+#
+################################################
+######   END
+################################################

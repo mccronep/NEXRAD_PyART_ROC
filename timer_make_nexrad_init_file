@@ -1,0 +1,125 @@
+#! /bin/ksh                                                                                            
+# SCCS IDENTIFICATION:  $HeadURL$                                                                      
+# SCCS IDENTIFICATION:  @(#)$Id$                                                                       
+#                                                                                                      
+#::::::::::::::::::::::::::::::                                                                        
+# timer_make_nexrad_init_file
+#::::::::::::::::::::::::::::::                                                                        
+#                                                                                                      
+#--------------------------------------------------------                                              
+# Written by Paul McCrone                                                                              
+# Make initialization file for NEXRAD process.
+#                                                                                                      
+#--------------------------------------------------------                                              
+#                                                                                                      
+#xxxxxxxxx                                                                                             
+#------------------------------------------------
+#
+##radar_nexrad_process  radar_nexrad_process*.init.dat  radar_nexrad_process.sms
+#
+#------------------------------------------------
+#xxxxxxxxx                                                                                             
+#                                                                                                      
+# Define environment variables                                                                         
+
+typeset machine=$( uname -n )
+typeset envir=$(echo $machine | cut -c 3-3 )
+
+typeset EXECDIR=/satdat/bin/
+##typeset ROOTDATADIR=/satdat/m4b/radar_nexrad_process
+typeset ROOTDATADIR=/satdat/curr/data_in/
+
+
+#--------------------------------------------------------
+if [[ $envir == "d" || $envir == "a" ]]; then            
+   typeset EXECDIR=/satdat/bin/                          
+   #typeset ROOTDATADIR=/satdat/m4b/RapidScat/nrt/NETCDF/ 
+   typeset ROOTDATADIR=/satdat/curr/data_in/
+fi                                                       
+#--------------------------------------------------------
+if [[ $envir == "b" || $envir == "o" ]]; then            
+   typeset EXECDIR=/u/ops/bin/                           
+   #typeset ROOTDATADIR=/satdat/m4b/RapidScat/nrt/NETCDF/ 
+   #typeset ROOTDATADIR=/satdat/curr/radar_nexrad_process/
+   typeset ROOTDATADIR=/satdat/curr/data_in/
+fi                                                       
+#--------------------------------------------------------
+
+JDAY=$(date +%j)
+
+DDMMYY=$(date +%F)
+
+HH=$(date +%H)
+
+MM=$(date +%M)
+
+#LOGPATH=/satdat/curr/timers/
+LOGPATH=${ROOTDATADIR}
+
+FILE=${LOGPATH}radar_nexrad_process_${DDMMYY}_${HH}${MM}_.init.dat
+
+
+touch $FILE
+
+
+################################################################################
+#
+# END SCRIPT
+#
+################################################################################
+
+
+
+
+
+
+
+
+
+
+#DASHES=----------------------------------------------------
+#
+#ZEROFILES=___NO_RAPIDSCAT_files_were__processed______
+#
+#SOMEFILES=___RAPIDSCAT_files_were_processed__________
+#
+#SCRIPTBEGINS=___The_Script_-timer_process_rscat_ncdf.ksh-__BEGINS_at_
+#
+#echo ${DASHES} >> ${LOGFILE}
+#echo ${DASHES} >> ${LOGFILE}
+#echo ${DASHES} >> ${LOGFILE}
+#echo ${SCRIPTBEGINS} >> ${LOGFILE}
+#date           >> ${LOGFILE}
+#echo ${DASHES} >> ${LOGFILE}
+
+###
+###--------------------------------
+###
+###--------------------------------
+###
+
+#cd ${ROOTDATADIR}
+#
+#ALTDIR=/satdat/m4b/RapidScat/nrt
+#LOGDIR=${ALTDIR}/Nlog/
+#
+#PROCDATADIR=${ALTDIR}/Nprocessed/
+#
+#cd ${EXECDIR}
+#
+#python -W ignore ${EXECDIR}timer_convert_Rscat_nCDF_2_Qscat_ASCII.py  >> ${LOGFILE}
+#
+#echo ${SOMEFILES} >> ${LOGFILE}
+#
+#echo ${DASHES} >> ${LOGFILE}
+#
+#xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+#xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+################################################################################
+#
+# END SCRIPT
+#
+################################################################################
+
+
+
